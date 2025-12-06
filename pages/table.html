@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>طلب الطاولة</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cart-item {
+            animation: slideIn 0.3s ease-in-out;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-orange-50 to-amber-50">
+
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-lg sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center text-2xl">🍽️</div>
+                <div>
+                    <h1 class="text-2xl font-bold">الطاولة <span id="tableNumberDisplay">--</span></h1>
+                    <p class="text-orange-100 text-sm">اختر الأصناف المفضلة لديك</p>
+                </div>
+            </div>
+            <button onclick="toggleCart()" class="relative bg-white bg-opacity-20 px-4 py-2 rounded-lg hover:bg-opacity-30 transition-all flex items-center gap-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+                <span id="cartBadge" class="bg-red-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">0</span>
+            </button>
+            <button onclick="openOrderTracker()" class="bg-white bg-opacity-20 px-4 py-2 rounded-lg hover:bg-opacity-30 transition-all flex items-center gap-2" title="تتبع الطلب">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span class="hidden md:inline text-sm">تتبع</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-6xl mx-auto px-4 py-6">
+        <!-- Search & Filter -->
+        <div class="mb-6">
+            <div class="relative">
+                <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <input type="text" id="searchInput" placeholder="ابحث عن صنف..." class="w-full pr-10 pl-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 transition-all">
+            </div>
+        </div>
+
+        <!-- Categories -->
+        <div id="categoriesContainer" class="flex gap-2 mb-6 overflow-x-auto pb-2">
+            <button onclick="filterByCategory('الكل')" class="category-btn bg-orange-600 text-white px-4 py-2 rounded-full whitespace-nowrap shadow-lg">الكل</button>
+        </div>
+
+        <!-- Menu Items Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            <div class="col-span-full text-center py-12">
+                <svg class="w-12 h-12 animate-spin text-orange-600 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <p class="text-gray-600 mt-4">جاري تحميل القائمة...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cart Sidebar -->
+    <div id="cartSidebar" class="fixed right-0 top-0 h-full w-80 bg-white shadow-2xl transform translate-x-96 transition-transform duration-300 z-40 flex flex-col">
+        <!-- Cart Header -->
+        <div class="bg-gradient-to-r from-orange-600 to-amber-600 text-white p-6 flex items-center justify-between">
+            <h2 class="text-xl font-bold">🛒 سلة الطلب</h2>
+            <button onclick="toggleCart()" class="hover:bg-white hover:bg-opacity-20 p-2 rounded transition-all">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Cart Items -->
+        <div id="cartItemsContainer" class="flex-1 overflow-y-auto p-4">
+            <p class="text-center text-gray-500 py-8">السلة فارغة</p>
+        </div>
+
+        <!-- Cart Summary -->
+        <div class="border-t p-4 space-y-3 bg-gray-50">
+            <div class="flex justify-between items-center text-lg">
+                <span class="font-semibold">الإجمالي:</span>
+                <span id="cartTotal" class="text-2xl font-bold text-orange-600">0 ج.م</span>
+            </div>
+
+            <button onclick="submitOrder()" class="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-3 rounded-lg hover:from-green-700 hover:to-green-800 transition-all font-bold flex items-center justify-center gap-2 shadow-md">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                تأكيد الطلب
+            </button>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="modal">
+        <div class="bg-white rounded-lg shadow-2xl p-8 max-w-md w-full mx-4">
+            <div class="text-center">
+                <div class="mb-4">
+                    <svg class="w-16 h-16 text-green-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">✅ تم استقبال طلبك</h2>
+                
+                <div class="bg-gradient-to-r from-orange-100 to-amber-100 rounded-lg p-4 mb-4">
+                    <p class="text-sm text-gray-600 mb-1">رقم الطلب</p>
+                    <p id="successOrderNumber" class="text-xl font-bold text-orange-600 break-all"></p>
+                    <p class="text-xs text-gray-500 mt-2">احفظ هذا الرقم لتتبع طلبك</p>
+                </div>
+
+                <div class="bg-blue-50 rounded-lg p-4 mb-6">
+                    <p class="text-sm text-gray-700 mb-2">الطاولة: <span id="successTableNumber" class="font-bold text-blue-600"></span></p>
+                    <p class="text-sm text-gray-700">الإجمالي: <span id="successTotal" class="font-bold text-blue-600"></span></p>
+                </div>
+
+                <button onclick="closeSuccessModal()" class="w-full bg-gradient-to-r from-orange-600 to-amber-600 text-white py-3 rounded-lg hover:shadow-lg transition-all font-bold">
+                    العودة للقائمة
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Tracker Modal -->
+    <div id="orderTrackerModal" class="modal">
+        <div class="bg-white rounded-lg shadow-2xl p-8 max-w-2xl w-full mx-4">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">📊 تتبع الطلبات</h2>
+                <button onclick="closeOrderTracker()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+
+            <div id="orderTrackerContent" class="space-y-4">
+                <!-- سيتم ملؤها بـ JavaScript -->
+            </div>
+
+            <button onclick="closeOrderTracker()" class="w-full mt-6 bg-gray-300 text-gray-800 py-2 rounded-lg hover:bg-gray-400 transition-all font-bold">
+                إغلاق
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://ffavhmndcnqgrdcxcnuo.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmYXZobW5kY25xZ3JkY3hjbnVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwMzIwODEsImV4cCI6MjA4MDYwODA4MX0.b80wJ2rZo_iiuO-HN-wzxyQ0bqh_Z_6p5h6unzL9G1E';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let menuItems = [];
+        let selectedCategory = 'الكل';
+        let cart = [];
+        let currentTableNumber = null;
+
+        window.onload = function() {
+            const params = new URLSearchParams(window.location.search);
+            currentTableNumber = params.get('table');
+            
+            if (currentTableNumber) {
+                document.getElementById('tableNumberDisplay').textContent = currentTableNumber;
+                loadMenuItems();
+            } else {
+                alert('لم يتم تحديد رقم طاولة');
+            }
+        };
+
+        // جلب الأصناف من Supabase
+        async function loadMenuItems() {
+            try {
+                const { data: items, error } = await supabase
+                    .from('menu_items')
+                    .select('*')
+                    .eq('available', true)
+                    .order('category')
+                    .order('name');
+
+                if (error) throw error;
+                
+                menuItems = items || [];
+                displayMenu();
+                displayCategories();
+            } catch (error) {
+                console.error('Error:', error);
+                document.querySelector('.grid').innerHTML = '<p class="col-span-full text-center text-gray-500 py-8">خطأ في تحميل القائمة</p>';
+            }
+        }
+
+        // عرض المنيو
+        function displayMenu() {
+            const container = document.querySelector('.grid');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            const filtered = menuItems.filter(item => {
+                const matchesCategory = selectedCategory === 'الكل' || item.category === selectedCategory;
+                const matchesSearch = item.name.toLowerCase().includes(searchTerm) || 
+                                     (item.description && item.description.toLowerCase().includes(searchTerm));
+                return matchesCategory && matchesSearch;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p class="col-span-full text-center text-gray-500 py-8">لا توجد أصناف متاحة</p>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(item => `
+                <div class="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow overflow-hidden">
+                    ${item.image_url ? `<img src="${item.image_url}" alt="${item.name}" class="w-full h-48 object-cover">` : '<div class="w-full h-48 bg-gradient-to-br from-orange-100 to-amber-100 flex items-center justify-center"><svg class="w-12 h-12 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>'}
+                    <div class="p-5">
+                        <div class="flex items-center gap-2 mb-2">
+                            <h3 class="text-lg font-bold text-gray-800">${item.name}</h3>
+                            <span class="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">${item.category}</span>
+                        </div>
+                        ${item.description ? `<p class="text-gray-600 text-sm mb-3">${item.description}</p>` : ''}
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-2xl font-bold text-orange-600">${item.price} ج.م</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="decreaseQty('${item.id}')" class="flex-1 px-2 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 font-bold transition-colors">-</button>
+                                <input type="number" id="qty_${item.id}" value="1" min="1" class="flex-1 text-center px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                                <button onclick="increaseQty('${item.id}')" class="flex-1 px-2 py-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 font-bold transition-colors">+</button>
+                            </div>
+                            <button onclick="addToCart('${item.id}', '${item.name}', ${item.price})" class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-bold">أضف للسلة</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // زيادة الكمية
+        function increaseQty(itemId) {
+            const input = document.getElementById('qty_' + itemId);
+            input.value = parseInt(input.value) + 1;
+        }
+
+        // تقليل الكمية
+        function decreaseQty(itemId) {
+            const input = document.getElementById('qty_' + itemId);
+            if (parseInt(input.value) > 1) {
+                input.value = parseInt(input.value) - 1;
+            }
+        }
+
+        // إضافة للسلة
+        function addToCart(itemId, itemName, itemPrice) {
+            const quantity = parseInt(document.getElementById('qty_' + itemId).value);
+            const existingItem = cart.find(item => item.id === itemId);
+            
+            if (existingItem) {
+                existingItem.quantity += quantity;
+            } else {
+                cart.push({
+                    id: itemId,
+                    name: itemName,
+                    price: itemPrice,
+                    quantity: quantity
+                });
+            }
+            
+            // إعادة تعيين الكمية
+            document.getElementById('qty_' + itemId).value = 1;
+            
+            updateCartUI();
+        }
+
+        // تحديث عرض السلة
+        function updateCartUI() {
+            const cartBadge = document.getElementById('cartBadge');
+            const cartContainer = document.getElementById('cartItemsContainer');
+            const cartTotal = document.getElementById('cartTotal');
+
+            cartBadge.textContent = cart.length;
+
+            if (cart.length === 0) {
+                cartContainer.innerHTML = '<p class="text-center text-gray-500 py-8">السلة فارغة</p>';
+                cartTotal.textContent = '0 ج.م';
+                return;
+            }
+
+            let total = 0;
+            cartContainer.innerHTML = cart.map((item, index) => {
+                const itemTotal = item.price * item.quantity;
+                total += itemTotal;
+                return `
+                    <div class="cart-item bg-gray-50 rounded-lg p-3 mb-3">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex-1">
+                                <h4 class="font-bold text-gray-800">${item.name}</h4>
+                                <p class="text-xs text-gray-600">${item.price} ج.م</p>
+                            </div>
+                            <button onclick="removeFromCart(${index})" class="text-red-600 hover:text-red-800">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="decreaseCartQty(${index})" class="px-2 py-1 bg-red-200 text-red-700 rounded text-sm font-bold">-</button>
+                            <span class="flex-1 text-center">${item.quantity}</span>
+                            <button onclick="increaseCartQty(${index})" class="px-2 py-1 bg-green-200 text-green-700 rounded text-sm font-bold">+</button>
+                        </div>
+                        <p class="text-right mt-2 font-bold text-orange-600">${itemTotal.toFixed(0)} ج.م</p>
+                    </div>
+                `;
+            }).join('');
+
+            cartTotal.textContent = total.toFixed(0) + ' ج.م';
+        }
+
+        // زيادة الكمية في السلة
+        function increaseCartQty(index) {
+            cart[index].quantity++;
+            updateCartUI();
+        }
+
+        // تقليل الكمية في السلة
+        function decreaseCartQty(index) {
+            cart[index].quantity--;
+            if (cart[index].quantity <= 0) {
+                removeFromCart(index);
+            } else {
+                updateCartUI();
+            }
+        }
+
+        // حذف من السلة
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            updateCartUI();
+        }
+
+        // عرض الفئات
+        function displayCategories() {
+            const categories = ['الكل', ...new Set(menuItems.map(item => item.category))];
+            const container = document.getElementById('categoriesContainer');
+            
+            container.innerHTML = categories.map(cat => `
+                <button onclick="filterByCategory('${cat}')" class="category-btn ${cat === selectedCategory ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-orange-50'} px-4 py-2 rounded-full whitespace-nowrap transition-all">
+                    ${cat}
+                </button>
+            `).join('');
+        }
+
+        // الفلترة حسب الفئة
+        function filterByCategory(category) {
+            selectedCategory = category;
+            displayMenu();
+            displayCategories();
+        }
+
+        // البحث
+        document.getElementById('searchInput').addEventListener('keyup', displayMenu);
+
+        // فتح/إغلاق السلة
+        function toggleCart() {
+            const sidebar = document.getElementById('cartSidebar');
+            sidebar.style.transform = sidebar.style.transform === 'translateX(0px)' ? 'translateX(384px)' : 'translateX(0px)';
+        }
+
+        // إرسال الطلب
+        async function submitOrder() {
+            if (cart.length === 0) {
+                alert('السلة فارغة');
+                return;
+            }
+
+            try {
+                const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                const orderNumber = 'T' + currentTableNumber + '-' + Date.now();
+
+                const orderData = {
+                    order_number: orderNumber,
+                    table_number: parseInt(currentTableNumber),
+                    customer_name: 'عميل الطاولة',
+                    items: JSON.stringify(cart),
+                    total_price: totalPrice,
+                    status: 'pending'
+                };
+
+                // إدراج الطلب
+                const { data, error } = await supabase
+                    .from('orders')
+                    .insert([orderData]);
+
+                if (error) {
+                    console.error('Supabase Error:', error);
+                    throw new Error('فشل في إرسال الطلب: ' + error.message);
+                }
+
+                // عرض نموذج النجاح
+                document.getElementById('successOrderNumber').innerText = orderNumber;
+                document.getElementById('successTableNumber').innerText = currentTableNumber;
+                document.getElementById('successTotal').innerText = totalPrice.toFixed(0) + ' ج.م';
+                showSuccessModal();
+                
+                // تنظيف
+                cart = [];
+                updateCartUI();
+                toggleCart();
+            } catch (error) {
+                console.error('Submit Error:', error);
+                alert('❌ حدث خطأ في إرسال الطلب:\n' + error.message);
+            }
+        }
+
+        function showSuccessModal() {
+            document.getElementById('successModal').classList.add('active');
+        }
+
+        function closeSuccessModal() {
+            document.getElementById('successModal').classList.remove('active');
+        }
+
+        // Order Tracker Functions
+        let trackerRefreshInterval;
+
+        async function openOrderTracker() {
+            const orderTrackerModal = document.getElementById('orderTrackerModal');
+            orderTrackerModal.classList.add('active');
+            
+            // Clear old interval if any
+            if (trackerRefreshInterval) clearInterval(trackerRefreshInterval);
+            
+            // Load orders immediately
+            await loadTableOrders();
+            
+            // Set up auto-refresh every 3 seconds
+            trackerRefreshInterval = setInterval(loadTableOrders, 3000);
+        }
+
+        function closeOrderTracker() {
+            document.getElementById('orderTrackerModal').classList.remove('active');
+            if (trackerRefreshInterval) {
+                clearInterval(trackerRefreshInterval);
+                trackerRefreshInterval = null;
+            }
+        }
+
+        async function loadTableOrders() {
+            try {
+                const { data: orders, error } = await supabase
+                    .from('orders')
+                    .select('*')
+                    .eq('table_number', currentTableNumber)
+                    .neq('status', 'completed')
+                    .order('created_at', { ascending: false });
+
+                if (error) {
+                    console.error('خطأ في تحميل الطلبات:', error);
+                    return;
+                }
+
+                const content = document.getElementById('orderTrackerContent');
+                
+                if (!orders || orders.length === 0) {
+                    content.innerHTML = `
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                            <p class="text-yellow-800 font-bold">📭 لا توجد طلبات نشطة على الطاولة</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                orders.forEach(order => {
+                    const statusInfo = getStatusInfo(order.status);
+                    const createdTime = new Date(order.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+                    
+                    // Parse items if it's a JSON string
+                    let items = [];
+                    if (typeof order.items === 'string') {
+                        try {
+                            items = JSON.parse(order.items);
+                        } catch (e) {
+                            items = [];
+                        }
+                    } else if (Array.isArray(order.items)) {
+                        items = order.items;
+                    }
+                    
+                    html += `
+                        <div class="bg-gradient-to-r ${statusInfo.bgGradient} rounded-lg p-5 border-l-4 ${statusInfo.borderColor}">
+                            <div class="flex justify-between items-start mb-3">
+                                <div>
+                                    <p class="text-xs text-gray-500">رقم الطلب</p>
+                                    <p class="text-lg font-bold text-gray-800">${order.order_number}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xs text-gray-500">الوقت</p>
+                                    <p class="text-sm font-semibold text-gray-700">${createdTime}</p>
+                                </div>
+                            </div>
+
+                            <!-- Status Progress Bar -->
+                            <div class="mb-4">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div class="flex-1">
+                                        <div class="h-2 bg-gray-300 rounded-full overflow-hidden">
+                                            <div class="h-full ${statusInfo.progressColor}" style="width: ${getStatusProgress(order.status)}%"></div>
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-bold ${statusInfo.textColor}">${statusInfo.label}</span>
+                                </div>
+                            </div>
+
+                            <!-- Status Timeline -->
+                            <div class="space-y-2">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-6 h-6 rounded-full ${getStageStatus(order.status, 'pending')} flex items-center justify-center">
+                                        <span class="text-xs font-bold text-white">1</span>
+                                    </div>
+                                    <span class="text-sm text-gray-700">في الانتظار</span>
+                                </div>
+                                
+                                <div class="flex items-center gap-3">
+                                    <div class="w-6 h-6 rounded-full ${getStageStatus(order.status, 'preparing')} flex items-center justify-center">
+                                        <span class="text-xs font-bold text-white">2</span>
+                                    </div>
+                                    <span class="text-sm text-gray-700">قيد التحضير</span>
+                                </div>
+                                
+                                <div class="flex items-center gap-3">
+                                    <div class="w-6 h-6 rounded-full ${getStageStatus(order.status, 'ready')} flex items-center justify-center">
+                                        <span class="text-xs font-bold text-white">3</span>
+                                    </div>
+                                    <span class="text-sm text-gray-700">جاهز</span>
+                                </div>
+                            </div>
+
+                            <!-- Items Summary -->
+                            <div class="mt-4 bg-white bg-opacity-50 rounded p-3">
+                                <p class="text-xs font-semibold text-gray-600 mb-2">المنتجات:</p>
+                                <div class="space-y-1">
+                                    ${items.map(item => `
+                                        <div class="flex justify-between text-sm text-gray-700">
+                                            <span>${item.name} × ${item.quantity}</span>
+                                            <span class="font-semibold">${(item.price * item.quantity).toFixed(2)} ر.س</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <div class="border-t border-gray-300 mt-2 pt-2 flex justify-between font-bold text-gray-800">
+                                    <span>الإجمالي:</span>
+                                    <span>${order.total_price.toFixed(2)} ر.س</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                content.innerHTML = html;
+
+            } catch (error) {
+                console.error('خطأ في تحميل الطلبات:', error);
+                document.getElementById('orderTrackerContent').innerHTML = `
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                        <p class="text-red-800">❌ حدث خطأ في تحميل الطلبات</p>
+                    </div>
+                `;
+            }
+        }
+
+        function getStatusInfo(status) {
+            const statuses = {
+                'pending': {
+                    label: '⏳ في الانتظار',
+                    bgGradient: 'from-yellow-50 to-amber-50',
+                    borderColor: 'border-yellow-400',
+                    progressColor: 'bg-yellow-400',
+                    textColor: 'text-yellow-700'
+                },
+                'preparing': {
+                    label: '👨‍🍳 قيد التحضير',
+                    bgGradient: 'from-blue-50 to-cyan-50',
+                    borderColor: 'border-blue-400',
+                    progressColor: 'bg-blue-400',
+                    textColor: 'text-blue-700'
+                },
+                'ready': {
+                    label: '✅ جاهز',
+                    bgGradient: 'from-green-50 to-emerald-50',
+                    borderColor: 'border-green-400',
+                    progressColor: 'bg-green-400',
+                    textColor: 'text-green-700'
+                },
+                'completed': {
+                    label: '🏁 مكتمل',
+                    bgGradient: 'from-gray-50 to-slate-50',
+                    borderColor: 'border-gray-400',
+                    progressColor: 'bg-gray-400',
+                    textColor: 'text-gray-700'
+                }
+            };
+            return statuses[status] || statuses['pending'];
+        }
+
+        function getStatusProgress(status) {
+            const progress = {
+                'pending': 33,
+                'preparing': 66,
+                'ready': 100,
+                'completed': 100
+            };
+            return progress[status] || 0;
+        }
+
+        function getStageStatus(currentStatus, stage) {
+            const stages = ['pending', 'preparing', 'ready'];
+            const currentIndex = stages.indexOf(currentStatus);
+            const stageIndex = stages.indexOf(stage);
+
+            if (stageIndex < currentIndex || currentStatus === 'completed') {
+                return 'bg-green-500';
+            } else if (stageIndex === currentIndex) {
+                return 'bg-blue-500 animate-pulse';
+            } else {
+                return 'bg-gray-300';
+            }
+        }
+    </script>
+</body>
+</html>

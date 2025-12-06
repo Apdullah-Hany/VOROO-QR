@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>رموز QR للطاولات</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-100 p-4">
+    
+    <!-- Header -->
+    <div class="mb-8 text-center">
+        <h1 class="text-4xl font-bold text-gray-800 mb-2">🍽️ رموز QR للطاولات</h1>
+        <p class="text-gray-600">اطبع الرموز وضعها على كل طاولة لتسهيل الطلب</p>
+    </div>
+
+    <!-- Controls -->
+    <div class="max-w-4xl mx-auto mb-6 flex gap-3 justify-center flex-wrap">
+        <button onclick="printAll()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-bold">🖨️ طباعة الكل</button>
+        <button onclick="downloadAll()" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors font-bold">⬇️ تحميل الكل</button>
+        <button onclick="openAddTableModal()" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors font-bold">➕ إضافة طاولة</button>
+    </div>
+
+    <!-- QR Codes Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        <!-- سيتم ملؤها بـ JavaScript -->
+    </div>
+
+    <!-- Add Table Modal -->
+    <div id="addTableModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">إضافة طاولة جديدة</h3>
+                <button onclick="closeAddTableModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">رقم الطاولة *</label>
+                    <input type="number" id="tableNumberInput" placeholder="مثال: 21" min="1" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">الملاحظات (اختياري)</label>
+                    <input type="text" id="tableNotesInput" placeholder="مثال: بجوار الشباك" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-3 border-t">
+                    <button onclick="submitAddTable()" class="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all font-bold">إضافة</button>
+                    <button onclick="closeAddTableModal()" class="bg-gradient-to-r from-gray-400 to-gray-500 text-white px-4 py-2 rounded-lg hover:from-gray-500 hover:to-gray-600 transition-all font-bold">إلغاء</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script src="/js/qr.js"></script>
+    <script>
+        // Supabase configuration (same as other pages)
+        const SUPABASE_URL = 'https://ffavhmndcnqgrdcxcnuo.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmYXZobW5kY25xZ3JkY3hjbnVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwMzIwODEsImV4cCI6MjA4MDYwODA4MX0.b80wJ2rZo_iiuO-HN-wzxyQ0bqh_Z_6p5h6unzL9G1E';
+        try {
+            window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            // also expose as `supabase` for compatibility with existing scripts
+            window.supabase = window.supabaseClient;
+        } catch (e) {
+            console.warn('Supabase init failed', e);
+        }
+    </script>
+ 
+    <style media="print">
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+        .max-w-6xl {
+            width: 100%;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10mm;
+        }
+        button {
+            display: none !important;
+        }
+    </style>
+</body>
+</html>

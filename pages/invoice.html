@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>فاتورة الطاولة</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gradient-to-br from-purple-600 to-blue-600 min-h-screen flex items-center justify-center p-4">
+    <!-- Main Card -->
+    <div class="w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+        
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-orange-600 to-amber-600 text-white p-8 text-center">
+            <h1 class="text-4xl font-bold mb-2">🧾 فاتورتك</h1>
+            <p class="text-orange-100">متابعة حالة طلبك</p>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="p-12 text-center">
+            <svg class="animate-spin h-16 w-16 text-orange-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="text-gray-600 text-lg">جاري تحميل فاتورتك...</p>
+        </div>
+
+        <!-- Invoice Content -->
+        <div id="invoiceContent" class="hidden p-8">
+            <!-- Customer Info -->
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-6">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-gray-600 text-sm">الطاولة رقم</p>
+                        <p class="text-3xl font-bold text-blue-600" id="tableNum">-</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-600 text-sm">اسم العميل</p>
+                        <p class="text-lg font-bold text-blue-600" id="custName">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Indicator -->
+            <div class="mb-8">
+                <p class="text-gray-700 font-bold mb-4 text-center">📊 حالة الطلب</p>
+                <div class="flex items-center justify-between mb-2">
+                    <div class="text-center flex-1">
+                        <div id="st1" class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600 mx-auto mb-2">1</div>
+                        <p class="text-xs text-gray-600">قيد الانتظار</p>
+                    </div>
+                    <div class="flex-1 h-1 bg-gray-300 mx-1" id="line1"></div>
+                    <div class="text-center flex-1">
+                        <div id="st2" class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600 mx-auto mb-2">2</div>
+                        <p class="text-xs text-gray-600">التحضير</p>
+                    </div>
+                    <div class="flex-1 h-1 bg-gray-300 mx-1" id="line2"></div>
+                    <div class="text-center flex-1">
+                        <div id="st3" class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600 mx-auto mb-2">3</div>
+                        <p class="text-xs text-gray-600">جاهز</p>
+                    </div>
+                    <div class="flex-1 h-1 bg-gray-300 mx-1" id="line3"></div>
+                    <div class="text-center flex-1">
+                        <div id="st4" class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600 mx-auto mb-2">✓</div>
+                        <p class="text-xs text-gray-600">مكتمل</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Items -->
+            <div class="mb-6 bg-gray-50 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <p class="font-bold text-gray-800">🍽️ الأصناف</p>
+                    <button onclick="openAddItemModal()" class="text-xs bg-green-600 text-white px-3 py-1 rounded-full hover:bg-green-700 transition-colors font-bold">➕ إضافة منتج</button>
+                </div>
+                <div id="itemsList" class="space-y-2"></div>
+            </div>
+
+            <!-- Total -->
+            <div class="border-t-2 border-gray-300 pt-4 text-center">
+                <p class="text-gray-600 text-sm mb-2">الإجمالي</p>
+                <p class="text-4xl font-bold text-orange-600" id="totalAmt">0 ج.م</p>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="hidden p-12 text-center">
+            <p class="text-6xl mb-4">❌</p>
+            <p class="text-gray-700 font-bold text-lg">لم نجد فاتورتك</p>
+            <p class="text-gray-500 mt-2 text-sm">تحقق من الرمز وحاول مرة أخرى</p>
+        </div>
+    </div>
+
+    <!-- Add Item Modal -->
+    <div id="addItemModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">إضافة منتج</h3>
+                <button onclick="closeAddItemModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">اختر المنتج *</label>
+                    <select id="addItemSelect" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-600">
+                        <option value="">-- اختر منتج --</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">السعر</label>
+                        <input type="number" id="addItemPrice" placeholder="0" disabled class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-50 text-gray-600">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">الكمية *</label>
+                        <input type="number" id="addItemQuantity" placeholder="1" min="1" value="1" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-600">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-3 border-t">
+                    <button onclick="submitAddItem()" class="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all font-bold">إضافة</button>
+                    <button onclick="closeAddItemModal()" class="bg-gradient-to-r from-gray-400 to-gray-500 text-white px-4 py-2 rounded-lg hover:from-gray-500 hover:to-gray-600 transition-all font-bold">إلغاء</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://ffavhmndcnqgrdcxcnuo.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmYXZobW5kY25xZ3JkY3hjbnVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwMzIwODEsImV4cCI6MjA4MDYwODA4MX0.b80wJ2rZo_iiuO-HN-wzxyQ0bqh_Z_6p5h6unzL9G1E';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        window.onload = async function() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            
+            if (code) {
+                await loadInvoice(code);
+                setInterval(() => loadInvoice(code), 3000);
+            } else {
+                showError();
+            }
+        };
+
+        async function loadInvoice(code) {
+            try {
+                const { data: orders, error } = await supabase
+                    .from('orders')
+                    .select('*')
+                    .ilike('order_number', `%${code}%`)
+                    .order('created_at', { ascending: false });
+
+                if (error || !orders || orders.length === 0) {
+                    showError();
+                    return;
+                }
+
+                // حفظ البيانات الحالية
+                currentOrderNumber = code;
+                currentTableNumber = orders[0].table_number;
+
+                displayInvoice(orders);
+            } catch (error) {
+                console.error('Error:', error);
+                showError();
+            }
+        }
+
+        function displayInvoice(orders) {
+            const table = orders[0].table_number;
+            const name = orders[0].customer_name;
+            const status = orders[0].status;
+            const total = orders.reduce((sum, o) => sum + o.total_price, 0);
+
+            // جمع الأصناف
+            const items = [];
+            orders.forEach(o => {
+                JSON.parse(o.items).forEach(item => {
+                    const exist = items.find(i => i.id === item.id);
+                    if (exist) exist.quantity += item.quantity;
+                    else items.push({...item});
+                });
+            });
+
+            // تحديث البيانات
+            document.getElementById('tableNum').textContent = table;
+            document.getElementById('custName').textContent = name;
+            document.getElementById('totalAmt').textContent = total.toFixed(0) + ' ج.م';
+
+            // عرض الأصناف
+            document.getElementById('itemsList').innerHTML = items.map(item => `
+                <div class="flex justify-between items-center p-2 bg-white rounded text-sm">
+                    <span class="font-medium">${item.name}</span>
+                    <span class="text-gray-600">${item.quantity}x ${item.price} = <strong>${(item.quantity * item.price).toFixed(0)}</strong> ج.م</span>
+                </div>
+            `).join('');
+
+            // تحديث الحالة
+            updateStatus(status);
+
+            // عرض الفاتورة
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('invoiceContent').classList.remove('hidden');
+            document.getElementById('errorState').classList.add('hidden');
+        }
+
+        function updateStatus(status) {
+            const statuses = { 'pending': 0, 'preparing': 1, 'ready': 2, 'completed': 3 };
+            const idx = statuses[status] || 0;
+
+            for (let i = 1; i <= 4; i++) {
+                const el = document.getElementById('st' + i);
+                const line = document.getElementById('line' + (i - 1));
+                
+                if (i - 1 <= idx) {
+                    el.className = 'w-12 h-12 rounded-full bg-green-500 flex items-center justify-center font-bold text-white mx-auto mb-2';
+                    if (line) line.className = 'flex-1 h-1 bg-green-500 mx-1';
+                } else {
+                    el.className = 'w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600 mx-auto mb-2';
+                    if (line) line.className = 'flex-1 h-1 bg-gray-300 mx-1';
+                }
+            }
+        }
+
+        function showError() {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('invoiceContent').classList.add('hidden');
+            document.getElementById('errorState').classList.remove('hidden');
+        }
+
+        // متغيرات عامة لتخزين البيانات الحالية
+        let currentOrderNumber = null;
+        let currentTableNumber = null;
+        let menuItems = [];
+
+        // تحميل قائمة المنتجات
+        async function loadMenuItems() {
+            try {
+                const { data: items, error } = await supabase
+                    .from('menu_items')
+                    .select('*')
+                    .eq('available', true);
+
+                if (error) throw error;
+                menuItems = items || [];
+            } catch (error) {
+                console.error('Error loading menu:', error);
+            }
+        }
+
+        // فتح موديول إضافة المنتج
+        async function openAddItemModal() {
+            if (menuItems.length === 0) {
+                await loadMenuItems();
+            }
+
+            // تعبئة قائمة المنتجات
+            const select = document.getElementById('addItemSelect');
+            select.innerHTML = '<option value="">-- اختر منتج --</option>';
+            menuItems.forEach(item => {
+                select.innerHTML += `<option value="${item.id}" data-name="${item.name}" data-price="${item.price}">${item.name} (${item.price} ج.م)</option>`;
+            });
+
+            document.getElementById('addItemModal').classList.remove('hidden');
+        }
+
+        // إغلاق موديول إضافة المنتج
+        function closeAddItemModal() {
+            document.getElementById('addItemModal').classList.add('hidden');
+            document.getElementById('addItemSelect').value = '';
+            document.getElementById('addItemPrice').value = '';
+            document.getElementById('addItemQuantity').value = '1';
+        }
+
+        // معالج تغيير اختيار المنتج
+        document.addEventListener('change', function(e) {
+            if (e.target.id === 'addItemSelect' && e.target.value) {
+                const option = e.target.selectedOptions[0];
+                document.getElementById('addItemPrice').value = option.dataset.price;
+            }
+        });
+
+        // إضافة منتج جديد
+        async function submitAddItem() {
+            const itemSelect = document.getElementById('addItemSelect');
+            const quantity = parseInt(document.getElementById('addItemQuantity').value);
+
+            if (!itemSelect.value) {
+                alert('اختر منتج');
+                return;
+            }
+
+            if (quantity < 1) {
+                alert('الكمية يجب أن تكون أكبر من 0');
+                return;
+            }
+
+            try {
+                const option = itemSelect.selectedOptions[0];
+                const newItem = {
+                    id: itemSelect.value,
+                    name: option.dataset.name,
+                    price: parseFloat(option.dataset.price),
+                    quantity: quantity
+                };
+
+                // جلب الطلب الحالي
+                const { data: orders, error: fetchError } = await supabase
+                    .from('orders')
+                    .select('*')
+                    .eq('table_number', currentTableNumber)
+                    .neq('status', 'completed')
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+
+                if (fetchError) throw fetchError;
+                if (!orders || orders.length === 0) {
+                    alert('لم نتمكن من إيجاد الطلب');
+                    return;
+                }
+
+                const order = orders[0];
+                const currentItems = JSON.parse(order.items);
+                
+                // تحقق من وجود المنتج
+                const existingItem = currentItems.find(i => i.id === newItem.id);
+                if (existingItem) {
+                    existingItem.quantity += newItem.quantity;
+                } else {
+                    currentItems.push(newItem);
+                }
+
+                // تحديث الإجمالي
+                const newTotal = currentItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+
+                // تحديث الطلب في قاعدة البيانات
+                const { error: updateError } = await supabase
+                    .from('orders')
+                    .update({
+                        items: JSON.stringify(currentItems),
+                        total_price: newTotal
+                    })
+                    .eq('id', order.id);
+
+                if (updateError) throw updateError;
+
+                alert('✅ تمت إضافة المنتج بنجاح');
+                closeAddItemModal();
+                
+                // إعادة تحميل الفاتورة
+                await loadInvoice(currentOrderNumber);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ حدث خطأ في إضافة المنتج: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
